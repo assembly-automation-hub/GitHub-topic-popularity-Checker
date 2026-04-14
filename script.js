@@ -1,5 +1,6 @@
 document.getElementById('checkButton').addEventListener('click', async () => {
     const input = document.getElementById('topicInput').value;
+    const token = document.getElementById('tokenInput').value.trim();
     const resultsDiv = document.getElementById('results');
     const button = document.getElementById('checkButton');
     
@@ -29,11 +30,15 @@ document.getElementById('checkButton').addEventListener('click', async () => {
 
         try {
             const url = `https://api.github.com/search/repositories?q=topic:${encodeURIComponent(topic)}&per_page=1`;
-            const response = await fetch(url, {
-                headers: {
-                    'Accept': 'application/vnd.github.v3+json'
-                }
-            });
+            const headers = {
+                'Accept': 'application/vnd.github.v3+json'
+            };
+
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            const response = await fetch(url, { headers });
 
             if (!response.ok) {
                 if (response.status === 403) {
@@ -49,7 +54,7 @@ document.getElementById('checkButton').addEventListener('click', async () => {
             countSpan.textContent = error.message;
         }
 
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 2500));
     }
 
     button.disabled = false;
