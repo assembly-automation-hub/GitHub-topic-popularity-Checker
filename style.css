@@ -23,6 +23,7 @@ h1 {
     margin-bottom: 16px;
 }
 
+input[type="password"],
 textarea {
     width: 100%;
     box-sizing: border-box;
@@ -30,11 +31,15 @@ textarea {
     border: 1px solid #d0d7de;
     border-radius: 6px;
     margin-bottom: 16px;
-    resize: vertical;
     font-family: monospace;
     font-size: 14px;
 }
 
+textarea {
+    resize: vertical;
+}
+
+input[type="password"]:focus,
 textarea:focus {
     outline: none;
     border-color: #0969da;
