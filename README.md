@@ -15,6 +15,11 @@ A lightweight, dependency-free browser tool that reports how many public GitHub 
 - [Tech Stack & Architecture](#tech-stack--architecture)
   - [Project Structure](#project-structure)
   - [Key Design Decisions](#key-design-decisions)
+- [Design System & Theme](#design-system--theme)
+  - [Layers](#layers)
+  - [Theme Tokens](#theme-tokens)
+  - [Component Behavior](#component-behavior)
+  - [Retheming](#retheming)
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
@@ -38,7 +43,10 @@ A lightweight, dependency-free browser tool that reports how many public GitHub 
 - **Fail-fast handling:** Stops the current batch after a fatal authentication or rate-limit failure instead of repeatedly making requests that cannot succeed.
 - **Optional GitHub token:** An optional Personal Access Token raises the applicable Search API request limit. The token is only kept in the password field and request-handling memory; the application does not write it to browser storage or cookies.
 - **Minimal attack surface:** No third-party runtime dependencies, analytics, backend, or build tooling. The page's Content Security Policy restricts connections to `api.github.com` and scripts/styles to same-origin files.
-- **Responsive, accessible interface:** Uses native HTML controls, labels the inputs for assistive technology, exposes results through a polite live region, and includes visible keyboard-focus styling.
+- **Dark glassmorphism interface:** Every navbar, panel, card, input, and modal is translucent frosted glass — `rgba(255, 255, 255, 0.05)` over `backdrop-filter: blur(18px) saturate(160%)` with a hairline `rgba(255, 255, 255, 0.12)` border — floating on a fixed `#0f0c29 → #302b63 → #24243e` gradient. Soft violet (`#a78bfa`) and electric blue (`#60a5fa`) carry buttons, active states, links, and focus rings. No surface on the page is solid or opaque.
+- **Token-driven theming:** Colors, radii, blurs, shadows, and type are CSS custom properties declared once on `:root` and consumed by a single `.glass` primitive, so the whole look can be retuned from one block of variables.
+- **Responsive, accessible interface:** Uses native HTML controls and a native `<dialog>`, labels the inputs for assistive technology, exposes results through a polite live region, includes visible keyboard-focus styling, and honors `prefers-reduced-motion`.
+- **Progressive UI enhancements:** Quick-add topic chips, a live topic counter, a token reveal toggle, a batch status line, a result summary pill, an empty state, and a clear-results action are wired separately from the request pipeline; the checker still runs if any of those nodes are missing.
 
 > [!IMPORTANT]
 > GitHub's Search API quota is separate from the general REST API quota. The application sends one repository-search request per uncached, valid topic, sequentially. Large batches can take time, particularly without authentication or when nearing a rate limit.
@@ -55,8 +63,8 @@ A lightweight, dependency-free browser tool that reports how many public GitHub 
 ```text
 .
 ├── index.html   # UI markup, accessibility attributes, and Content Security Policy
-├── style.css    # Responsive, GitHub-inspired interface styles
-├── script.js    # Input normalization, validation, caching, API requests, and rendering
+├── style.css    # Dark glassmorphism design system: tokens, glass surfaces, responsive layout
+├── script.js    # Input normalization, validation, caching, API requests, rendering, and UI wiring
 ├── README.md    # Project documentation
 └── LICENSE      # Apache License 2.0
 ```
@@ -68,6 +76,7 @@ A lightweight, dependency-free browser tool that reports how many public GitHub 
 3. **Validate before querying:** Topic syntax is checked against the accepted slug format before building the API query. This prevents malformed input from being treated as a search expression and avoids unnecessary API consumption.
 4. **Safe DOM rendering:** User-supplied topic text and result values are assigned using `textContent`, not interpolated into HTML. Results are prepared in a `DocumentFragment` to reduce repeated DOM updates.
 5. **Ephemeral cache and token handling:** The cache is an in-memory `Map` with a five-minute TTL. Tokens are not persisted across reloads and are sent only to the GitHub API endpoint allowed by the page policy.
+6. **Theme lives in CSS custom properties:** The glassmorphism design system is expressed as `:root` variables plus one `.glass` primitive and component rules in `style.css`. No inline `style` attributes, injected `<style>` blocks, web fonts, or image assets are used — icons are inline SVG. That keeps the strict Content Security Policy (`style-src 'self'`, `default-src 'none'`) intact while allowing the entire palette to be retuned from a single block.
 
 <details>
 <summary>Request and result pipeline</summary>
@@ -94,6 +103,55 @@ flowchart TD
 The `total_count` is GitHub Search's count for the `topic:<slug>` query. It should be treated as an API search result, not as a permanent, real-time guarantee: repository visibility, indexing, and GitHub's search behavior can change.
 
 </details>
+
+## Design System & Theme
+
+The interface is a dark glassmorphism theme: frosted translucent surfaces floating over a fixed deep-violet gradient. Nothing on the page is a solid opaque panel — every surface is semi-transparent glass with a hairline light border, a soft outer shadow, and a subtle top-edge sheen.
+
+### Layers
+
+| Layer | Implementation | Purpose |
+| --- | --- | --- |
+| Backdrop | `body::before`, `position: fixed; inset: 0`, `linear-gradient(135deg, #0f0c29, #302b63, #24243e)` | Full-screen base gradient that does not scroll with content. |
+| Accent orbs | `body::after`, four large radial gradients on a slow `drift` animation | Gives the blur something to refract so the frost reads as glass. |
+| Glass surfaces | `.glass`: `rgba(255, 255, 255, 0.05)` background, `1px solid rgba(255, 255, 255, 0.12)` border, `backdrop-filter: blur(18px) saturate(160%)`, `border-radius: 16px`, `box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4)` | Navbar, hero stat tiles, both workspace panels, footer, modal, and nested cards. |
+| Content | White text with `rgba(255, 255, 255, 0.6)` secondary and `0.55` muted | Keeps copy legible over translucent surfaces. |
+
+### Theme Tokens
+
+All visual constants are CSS custom properties declared once on `:root` in `style.css`:
+
+| Token | Default | Used for |
+| --- | --- | --- |
+| `--bg-1`, `--bg-2`, `--bg-3` | `#0f0c29`, `#302b63`, `#24243e` | Fixed backdrop gradient stops. |
+| `--glass-bg` | `rgba(255, 255, 255, 0.05)` | Base fill for panels, navbar, modal, and footer. |
+| `--glass-bg-raise`, `--glass-bg-sunken` | white at `0.085` and `0.035` | Hover/raised and nested/recessed surfaces. |
+| `--glass-border`, `--glass-border-soft`, `--glass-border-raise` | white at `0.12`, `0.08`, `0.22` | Hairline edges, dividers, and hover edges. |
+| `--glass-blur` (`-sm`, `-xs`) | `blur(18px) saturate(160%)`, `12px`, `8px` | Frost strength for surfaces, controls, and small cards. |
+| `--glass-radius`, `--glass-radius-sm`, `--glass-radius-pill` | `16px`, `12px`, `999px` | Panel, control, and pill corner radii. |
+| `--glass-shadow` | `0 8px 32px rgba(0, 0, 0, 0.4)` | Elevation for every floating surface. |
+| `--glass-sheen` | `inset 0 1px 0 rgba(255, 255, 255, 0.08)` | Top-edge highlight that suggests glass thickness. |
+| `--text`, `--text-secondary`, `--text-muted`, `--text-faint` | `#ffffff`, white at `0.6`, `0.55`, `0.45` | Type hierarchy and placeholders. |
+| `--accent`, `--accent-alt` | `#a78bfa`, `#60a5fa` | Buttons, active nav state, links, focus rings, result counts. |
+| `--accent-fill`, `--accent-border`, `--accent-glow` | violet at `0.14`, `0.45`, `0.28` | Tinted glass button bodies and the inner hover glow. |
+| `--success`, `--danger`, `--warning` | `#6ee7b7`, `#fca5a5`, `#fcd34d` | Status tones, cached rows, and error rows. |
+| `--focus-ring`, `--focus-outline` | `0 0 0 3px rgba(167, 139, 250, 0.32)` | Accent focus ring for inputs, buttons, and keyboard navigation. |
+| `--shell` | `min(1120px, 100% - 2.5rem)` | Shared content width for navbar, layout, and footer. |
+
+### Component Behavior
+
+- **Buttons:** glass body with an accent-tinted border. Hover raises the surface, brightens the border, and adds a subtle inner glow (`inset 0 0 24px`) with a soft outer bloom; active presses scale to `0.985`; disabled drops to `0.45` opacity and loses the glow. Variants: `--primary` (violet), `--blue`, `--ghost`, `--sm`, `--block`.
+- **Inputs:** no solid fill anywhere — translucent glass background, hairline border, violet caret, dim placeholder, and an accent focus ring with a faint inner bloom. `-webkit-autofill` is overridden so an autofilled token field stays translucent instead of turning white.
+- **Result rows:** nested glass cards keyed by `data-state` (`loading`, `ok`, `cached`, `error`). Loading rows pulse with a blue dot; counts render as a tabular-numeral value in violet plus a `public repos` unit; cache hits add a `cached` tag; errors tint the whole row red.
+- **Navbar:** a sticky floating glass bar (`top: 1rem`) with a segmented pill navigation; the active link is violet-tinted glass.
+- **Modal:** a native `<dialog>` in the top layer — full-viewport glass box over a `blur(8px)` backdrop, dismissed by the close button, the footer action, `Esc`, or a click on the backdrop.
+- **Motion:** short transitions, a slow-drifting orb layer, an indeterminate progress rail, and a staggered row entrance. All of it is disabled under `prefers-reduced-motion: reduce`.
+- **Fallback:** engines without `backdrop-filter` match a nested `@supports` rule that swaps the glass fills for darker translucent values, preserving contrast without introducing an opaque surface.
+- **Small screens:** the workspace collapses to a single column below `980px`, the results panel stops sticking, the navbar hides the external link and button labels below `760px`, and rows, headers, and modal actions reflow below `520px`.
+
+### Retheming
+
+Edit the `:root` block in `style.css`. Changing `--accent` and `--accent-alt` retints every button, link, chip hover, focus ring, and result count; changing `--bg-1`, `--bg-2`, and `--bg-3` repaints the fixed backdrop. No component hard-codes a color, so the palette can be shifted or inverted without touching markup or JavaScript.
 
 ## Getting Started
 
@@ -156,6 +214,8 @@ For a manual end-to-end check, open <http://localhost:8000> and verify:
 3. Empty lines are ignored and malformed slugs (for example, `-invalid`) are rejected without an API call.
 4. Rechecking a topic within five minutes uses the cached result; reload the page to clear the cache.
 5. A missing or invalid token, timeout, API error, and rate-limit response are reported in the corresponding result row without breaking the page.
+6. Interface checks: quick-add chips append to the textarea without duplicating, the topic counter pill reflects valid and invalid lines, the eye toggle reveals and re-hides the token, **How it works** opens the glass modal (closable by button, `Esc`, or backdrop click), the progress rail and status line animate during a batch, and **Clear** restores the empty state.
+7. Theme checks: the gradient stays fixed while content scrolls, every panel, input, and modal is translucent rather than opaque, focus rings are violet, and enabling `prefers-reduced-motion` stops the drifting orbs, spinner, and row entrance animations.
 
 Browser developer tools can be used to inspect network requests and confirm requests target `api.github.com`. Do not use a real secret token in screenshots, recordings, or shared developer-tool logs.
 
@@ -181,7 +241,7 @@ GitHub Pages and similar static hosting services are suitable. If using CI/CD, d
 1. Open the application in a browser.
 2. Optionally enter a GitHub Personal Access Token in the password field to increase the Search API quota.
 3. Enter one topic slug per line.
-4. Select **Check Topics** and read each result beside its topic.
+4. Select **Check topics** and read each result beside its topic.
 
 ```text
 api
@@ -189,7 +249,7 @@ react
 python
 ```
 
-The application trims each line, strips leading `#` characters, lowercases it, and removes duplicates without changing the order of the first occurrence. For example, ` #React ` and `react` are treated as the same topic. Each successful result is displayed as a localized number followed by `public`.
+The application trims each line, strips leading `#` characters, lowercases it, and removes duplicates without changing the order of the first occurrence. For example, ` #React ` and `react` are treated as the same topic. Each successful result is displayed as a localized number followed by `public repos`; rows served from the five-minute cache also carry a `cached` tag, and failed rows are tinted red with the error message.
 
 <details>
 <summary>Advanced usage, API behavior, and edge cases</summary>
