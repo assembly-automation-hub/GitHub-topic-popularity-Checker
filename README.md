@@ -125,9 +125,9 @@ All visual constants are CSS custom properties declared once on `:root` in `styl
 | --- | --- | --- |
 | `--bg-1`, `--bg-2`, `--bg-3` | `#0f0c29`, `#302b63`, `#24243e` | Fixed backdrop gradient stops. |
 | `--glass-bg` | `rgba(255, 255, 255, 0.05)` | Base fill for panels, navbar, modal, and footer. |
-| `--glass-bg-raise`, `--glass-bg-sunken` | white at `0.085` and `0.035` | Hover/raised and nested/recessed surfaces. |
+| `--glass-bg-raise` | `rgba(255, 255, 255, 0.085)` | Raised/hover state for glass surfaces. |
 | `--glass-border`, `--glass-border-soft`, `--glass-border-raise` | white at `0.12`, `0.08`, `0.22` | Hairline edges, dividers, and hover edges. |
-| `--glass-blur` (`-sm`, `-xs`) | `blur(18px) saturate(160%)`, `12px`, `8px` | Frost strength for surfaces, controls, and small cards. |
+| `--glass-blur` | `blur(18px) saturate(160%)` | The single frost value applied to every glass component, including the modal backdrop. |
 | `--glass-radius`, `--glass-radius-sm`, `--glass-radius-pill` | `16px`, `12px`, `999px` | Panel, control, and pill corner radii. |
 | `--glass-shadow` | `0 8px 32px rgba(0, 0, 0, 0.4)` | Elevation for every floating surface. |
 | `--glass-sheen` | `inset 0 1px 0 rgba(255, 255, 255, 0.08)` | Top-edge highlight that suggests glass thickness. |
@@ -141,12 +141,14 @@ All visual constants are CSS custom properties declared once on `:root` in `styl
 ### Component Behavior
 
 - **Buttons:** glass body with an accent-tinted border. Hover raises the surface, brightens the border, and adds a subtle inner glow (`inset 0 0 24px`) with a soft outer bloom; active presses scale to `0.985`; disabled drops to `0.45` opacity and loses the glow. Variants: `--primary` (violet), `--blue`, `--ghost`, `--sm`, `--block`.
+- **Uniform frost:** navbar, panels, stat tiles, cards, result rows, chips, pills, inputs, buttons, the empty state, the modal and its backdrop all share the same `rgba(255, 255, 255, 0.05)` fill, `rgba(255, 255, 255, 0.12)` border, `blur(18px) saturate(160%)` frost, and `0 8px 32px rgba(0, 0, 0, 0.4)` shadow. Depth comes from stacking translucent glass over translucent glass, not from opaque fills — only internal hairline dividers and hover/raised states deviate, and semantic states (cached, error, success) add a translucent tint on top of the same base.
 - **Inputs:** no solid fill anywhere — translucent glass background, hairline border, violet caret, dim placeholder, and an accent focus ring with a faint inner bloom. `-webkit-autofill` is overridden so an autofilled token field stays translucent instead of turning white.
 - **Result rows:** nested glass cards keyed by `data-state` (`loading`, `ok`, `cached`, `error`). Loading rows pulse with a blue dot; counts render as a tabular-numeral value in violet plus a `public repos` unit; cache hits add a `cached` tag; errors tint the whole row red.
 - **Navbar:** a sticky floating glass bar (`top: 1rem`) with a segmented pill navigation; the active link is violet-tinted glass.
 - **Modal:** a native `<dialog>` in the top layer — full-viewport glass box over a `blur(8px)` backdrop, dismissed by the close button, the footer action, `Esc`, or a click on the backdrop.
 - **Motion:** short transitions, a slow-drifting orb layer, an indeterminate progress rail, and a staggered row entrance. All of it is disabled under `prefers-reduced-motion: reduce`.
 - **Fallback:** engines without `backdrop-filter` match a nested `@supports` rule that swaps the glass fills for darker translucent values, preserving contrast without introducing an opaque surface.
+- **Performance note:** the frost is applied uniformly as specified, so a very large batch means one blurred layer per result row. Lowering or removing `--glass-blur` is a single-token change if a low-power device needs it.
 - **Small screens:** the workspace collapses to a single column below `980px`, the results panel stops sticking, the navbar hides the external link and button labels below `760px`, and rows, headers, and modal actions reflow below `520px`.
 
 ### Retheming
