@@ -43,7 +43,7 @@ A lightweight, dependency-free browser tool that reports how many public GitHub 
 - **Fail-fast handling:** Stops the current batch after a fatal authentication or rate-limit failure instead of repeatedly making requests that cannot succeed.
 - **Optional GitHub token:** An optional Personal Access Token raises the applicable Search API request limit. The token is only kept in the password field and request-handling memory; the application does not write it to browser storage or cookies.
 - **Minimal attack surface:** No third-party runtime dependencies, analytics, backend, or build tooling. The page's Content Security Policy restricts connections to `api.github.com` and scripts/styles to same-origin files.
-- **Dark glassmorphism interface:** Every navbar, panel, card, input, and modal is translucent frosted glass — `rgba(255, 255, 255, 0.05)` over `backdrop-filter: blur(18px) saturate(160%)` with a hairline `rgba(255, 255, 255, 0.12)` border — floating on a fixed `#0f0c29 → #302b63 → #24243e` gradient. Soft violet (`#a78bfa`) and electric blue (`#60a5fa`) carry buttons, active states, links, and focus rings. No surface on the page is solid or opaque.
+- **Dark GitHub-style interface:** Every navbar, panel, card, input, and modal is translucent frosted glass — `rgba(255, 255, 255, 0.05)` over `backdrop-filter: blur(18px) saturate(160%)` with a hairline `rgba(255, 255, 255, 0.12)` border — floating on a fixed `#0d1117 → #161b22 → #1c2128` gradient (GitHub's dark neutrals). GitHub blue (`#58a6ff`) and its light variant (`#79c0ff`) carry buttons, active states, links, and focus rings. No surface on the page is solid or opaque.
 - **Token-driven theming:** Colors, radii, blurs, shadows, and type are CSS custom properties declared once on `:root` and consumed by a single `.glass` primitive, so the whole look can be retuned from one block of variables.
 - **Responsive, accessible interface:** Uses native HTML controls and a native `<dialog>`, labels the inputs for assistive technology, exposes results through a polite live region, includes visible keyboard-focus styling, and honors `prefers-reduced-motion`.
 - **Progressive UI enhancements:** Quick-add topic chips, a live topic counter, a token reveal toggle, a batch status line, a result summary pill, an empty state, and a clear-results action are wired separately from the request pipeline; the checker still runs if any of those nodes are missing.
@@ -106,16 +106,16 @@ The `total_count` is GitHub Search's count for the `topic:<slug>` query. It shou
 
 ## Design System & Theme
 
-The interface is a dark glassmorphism theme: frosted translucent surfaces floating over a fixed deep-violet gradient. Nothing on the page is a solid opaque panel — every surface is semi-transparent glass with a hairline light border, a soft outer shadow, and a subtle top-edge sheen.
+The interface is a dark, GitHub-style grey theme: frosted translucent surfaces floating over a fixed neutral gradient built from GitHub's dark canvas colors. Nothing on the page is a solid opaque panel — every surface is semi-transparent glass with a hairline light border, a soft outer shadow, and a subtle top-edge sheen.
 
 ### Layers
 
 | Layer | Implementation | Purpose |
 | --- | --- | --- |
-| Backdrop | `body::before`, `position: fixed; inset: 0`, `linear-gradient(135deg, #0f0c29, #302b63, #24243e)` | Full-screen base gradient that does not scroll with content. |
-| Accent orbs | `body::after`, four large radial gradients on a slow `drift` animation | Gives the blur something to refract so the frost reads as glass. |
+| Backdrop | `body::before`, `position: fixed; inset: 0`, `linear-gradient(135deg, #0d1117, #161b22, #1c2128)` | Full-screen base gradient that does not scroll with content. |
+| Accent orbs | `body::after`, four large radial gradients (blue and grey tints) on a slow `drift` animation | Gives the blur something to refract so the frost reads as glass. |
 | Glass surfaces | `.glass`: `rgba(255, 255, 255, 0.05)` background, `1px solid rgba(255, 255, 255, 0.12)` border, `backdrop-filter: blur(18px) saturate(160%)`, `border-radius: 16px`, `box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4)` | Navbar, hero stat tiles, both workspace panels, footer, modal, and nested cards. |
-| Content | White text with `rgba(255, 255, 255, 0.6)` secondary and `0.55` muted | Keeps copy legible over translucent surfaces. |
+| Content | Off-white `#e6edf3` text with `#9198a1` secondary and `#8b949e` muted | Keeps copy legible over translucent surfaces. |
 
 ### Theme Tokens
 
@@ -123,7 +123,7 @@ All visual constants are CSS custom properties declared once on `:root` in `styl
 
 | Token | Default | Used for |
 | --- | --- | --- |
-| `--bg-1`, `--bg-2`, `--bg-3` | `#0f0c29`, `#302b63`, `#24243e` | Fixed backdrop gradient stops. |
+| `--bg-1`, `--bg-2`, `--bg-3` | `#0d1117`, `#161b22`, `#1c2128` | Fixed backdrop gradient stops. |
 | `--glass-bg` | `rgba(255, 255, 255, 0.05)` | Base fill for panels, navbar, modal, and footer. |
 | `--glass-bg-raise`, `--glass-bg-sunken` | white at `0.085` and `0.035` | Hover/raised and nested/recessed surfaces. |
 | `--glass-border`, `--glass-border-soft`, `--glass-border-raise` | white at `0.12`, `0.08`, `0.22` | Hairline edges, dividers, and hover edges. |
@@ -131,19 +131,19 @@ All visual constants are CSS custom properties declared once on `:root` in `styl
 | `--glass-radius`, `--glass-radius-sm`, `--glass-radius-pill` | `16px`, `12px`, `999px` | Panel, control, and pill corner radii. |
 | `--glass-shadow` | `0 8px 32px rgba(0, 0, 0, 0.4)` | Elevation for every floating surface. |
 | `--glass-sheen` | `inset 0 1px 0 rgba(255, 255, 255, 0.08)` | Top-edge highlight that suggests glass thickness. |
-| `--text`, `--text-secondary`, `--text-muted`, `--text-faint` | `#ffffff`, white at `0.6`, `0.55`, `0.45` | Type hierarchy and placeholders. |
-| `--accent`, `--accent-alt` | `#a78bfa`, `#60a5fa` | Buttons, active nav state, links, focus rings, result counts. |
-| `--accent-fill`, `--accent-border`, `--accent-glow` | violet at `0.14`, `0.45`, `0.28` | Tinted glass button bodies and the inner hover glow. |
-| `--success`, `--danger`, `--warning` | `#6ee7b7`, `#fca5a5`, `#fcd34d` | Status tones, cached rows, and error rows. |
-| `--focus-ring`, `--focus-outline` | `0 0 0 3px rgba(167, 139, 250, 0.32)` | Accent focus ring for inputs, buttons, and keyboard navigation. |
+| `--text`, `--text-secondary`, `--text-muted`, `--text-faint` | `#e6edf3`, `#9198a1`, `#8b949e`, `#6e7681` | Type hierarchy and placeholders. |
+| `--accent`, `--accent-alt` | `#58a6ff`, `#79c0ff` | Buttons, active nav state, links, focus rings, result counts. |
+| `--accent-fill`, `--accent-border`, `--accent-glow` | GitHub blue at `0.14`, `0.45`, `0.28` | Tinted glass button bodies and the inner hover glow. |
+| `--success`, `--danger`, `--warning` | `#3fb950`, `#ff7b72`, `#d29922` | Status tones, cached rows, and error rows. |
+| `--focus-ring`, `--focus-outline` | `0 0 0 3px rgba(88, 166, 255, 0.32)` | Accent focus ring for inputs, buttons, and keyboard navigation. |
 | `--shell` | `min(1120px, 100% - 2.5rem)` | Shared content width for navbar, layout, and footer. |
 
 ### Component Behavior
 
-- **Buttons:** glass body with an accent-tinted border. Hover raises the surface, brightens the border, and adds a subtle inner glow (`inset 0 0 24px`) with a soft outer bloom; active presses scale to `0.985`; disabled drops to `0.45` opacity and loses the glow. Variants: `--primary` (violet), `--blue`, `--ghost`, `--sm`, `--block`.
-- **Inputs:** no solid fill anywhere — translucent glass background, hairline border, violet caret, dim placeholder, and an accent focus ring with a faint inner bloom. `-webkit-autofill` is overridden so an autofilled token field stays translucent instead of turning white.
-- **Result rows:** nested glass cards keyed by `data-state` (`loading`, `ok`, `cached`, `error`). Loading rows pulse with a blue dot; counts render as a tabular-numeral value in violet plus a `public repos` unit; cache hits add a `cached` tag; errors tint the whole row red.
-- **Navbar:** a sticky floating glass bar (`top: 1rem`) with a segmented pill navigation; the active link is violet-tinted glass.
+- **Buttons:** glass body with an accent-tinted border. Hover raises the surface, brightens the border, and adds a subtle inner glow (`inset 0 0 24px`) with a soft outer bloom; active presses scale to `0.985`; disabled drops to `0.45` opacity and loses the glow. Variants: `--primary` (blue), `--blue`, `--ghost`, `--sm`, `--block`.
+- **Inputs:** no solid fill anywhere — translucent glass background, hairline border, blue caret, dim placeholder, and an accent focus ring with a faint inner bloom. `-webkit-autofill` is overridden so an autofilled token field stays translucent instead of turning white.
+- **Result rows:** nested glass cards keyed by `data-state` (`loading`, `ok`, `cached`, `error`). Loading rows pulse with a blue dot; counts render as a tabular-numeral value in blue plus a `public repos` unit; cache hits add a `cached` tag; errors tint the whole row red.
+- **Navbar:** a sticky floating glass bar (`top: 1rem`) with a segmented pill navigation; the active link is blue-tinted glass.
 - **Modal:** a native `<dialog>` in the top layer — full-viewport glass box over a `blur(8px)` backdrop, dismissed by the close button, the footer action, `Esc`, or a click on the backdrop.
 - **Motion:** short transitions, a slow-drifting orb layer, an indeterminate progress rail, and a staggered row entrance. All of it is disabled under `prefers-reduced-motion: reduce`.
 - **Fallback:** engines without `backdrop-filter` match a nested `@supports` rule that swaps the glass fills for darker translucent values, preserving contrast without introducing an opaque surface.
@@ -215,7 +215,7 @@ For a manual end-to-end check, open <http://localhost:8000> and verify:
 4. Rechecking a topic within five minutes uses the cached result; reload the page to clear the cache.
 5. A missing or invalid token, timeout, API error, and rate-limit response are reported in the corresponding result row without breaking the page.
 6. Interface checks: quick-add chips append to the textarea without duplicating, the topic counter pill reflects valid and invalid lines, the eye toggle reveals and re-hides the token, **How it works** opens the glass modal (closable by button, `Esc`, or backdrop click), the progress rail and status line animate during a batch, and **Clear** restores the empty state.
-7. Theme checks: the gradient stays fixed while content scrolls, every panel, input, and modal is translucent rather than opaque, focus rings are violet, and enabling `prefers-reduced-motion` stops the drifting orbs, spinner, and row entrance animations.
+7. Theme checks: the gradient stays fixed while content scrolls, every panel, input, and modal is translucent rather than opaque, focus rings are blue, and enabling `prefers-reduced-motion` stops the drifting orbs, spinner, and row entrance animations.
 
 Browser developer tools can be used to inspect network requests and confirm requests target `api.github.com`. Do not use a real secret token in screenshots, recordings, or shared developer-tool logs.
 
