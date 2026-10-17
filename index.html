@@ -3,17 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Restrict resource loading and ensure the GitHub token can only be sent to api.github.com -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src https://api.github.com; base-uri 'self'; form-action 'none';">
+    <meta name="referrer" content="no-referrer">
     <title>GitHub Topic Checker</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <h1>Topic Popularity Checker</h1>
-        <input type="password" id="tokenInput" placeholder="GitHub Token (optional, for higher rate limits)">
-        <textarea id="topicInput" rows="10" placeholder="api&#10;react&#10;python"></textarea>
-        <button id="checkButton">Check Topics</button>
-        <div id="results"></div>
+        <input
+            type="password"
+            id="tokenInput"
+            placeholder="GitHub Token (optional, for higher rate limits)"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+            aria-label="GitHub Personal Access Token"
+        >
+        <textarea
+            id="topicInput"
+            rows="10"
+            placeholder="api&#10;react&#10;python"
+            autocapitalize="off"
+            spellcheck="false"
+            aria-label="GitHub topics list (one per line)"
+        ></textarea>
+        <button type="button" id="checkButton">Check Topics</button>
+        <div id="results" aria-live="polite"></div>
     </div>
-    <script src="script.js"></script>
+    <script src="script.js" defer></script>
 </body>
 </html>
