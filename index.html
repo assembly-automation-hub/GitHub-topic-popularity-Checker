@@ -6,32 +6,265 @@
     <!-- Restrict resource loading and ensure the GitHub token can only be sent to api.github.com -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src https://api.github.com; base-uri 'self'; form-action 'none';">
     <meta name="referrer" content="no-referrer">
+    <meta name="color-scheme" content="dark">
+    <meta name="theme-color" content="#0f0c29">
+    <meta name="description" content="Check how many public GitHub repositories use each topic, straight from the GitHub Search API in your browser.">
     <title>GitHub Topic Checker</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <h1>Topic Popularity Checker</h1>
-        <input
-            type="password"
-            id="tokenInput"
-            placeholder="GitHub Token (optional, for higher rate limits)"
-            autocomplete="off"
-            autocapitalize="off"
-            spellcheck="false"
-            aria-label="GitHub Personal Access Token"
-        >
-        <textarea
-            id="topicInput"
-            rows="10"
-            placeholder="api&#10;react&#10;python"
-            autocapitalize="off"
-            spellcheck="false"
-            aria-label="GitHub topics list (one per line)"
-        ></textarea>
-        <button type="button" id="checkButton">Check Topics</button>
-        <div id="results" aria-live="polite"></div>
+    <a class="skip-link" href="#main">Skip to the checker</a>
+
+    <!-- Floating glass navigation bar -->
+    <div class="navbar-shell">
+        <header class="navbar glass">
+            <a class="brand" href="#main">
+                <span class="brand__mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                        <path d="M5 20V11M12 20V4M19 20v-6"></path>
+                    </svg>
+                </span>
+                <span class="brand__name">Topic <span class="brand__name-accent">Checker</span></span>
+            </a>
+
+            <nav class="nav" aria-label="Primary">
+                <a class="nav__link is-active" href="#main" aria-current="page">Checker</a>
+                <button class="nav__link nav__link--button" type="button" data-dialog-open="about-dialog">How it works</button>
+                <a class="nav__link nav__link--external" href="https://github.com/assembly-automation-hub/GitHub-topic-popularity-Checker" target="_blank" rel="noopener noreferrer">
+                    GitHub
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"></path>
+                    </svg>
+                </a>
+            </nav>
+
+            <button class="btn btn--sm btn--blue navbar__cta" type="button" data-dialog-open="about-dialog">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9"></circle>
+                    <path d="M12 11v5M12 8h.01"></path>
+                </svg>
+                <span>About</span>
+            </button>
+        </header>
     </div>
+
+    <main id="main" class="layout">
+        <section class="hero" aria-labelledby="page-title">
+            <p class="eyebrow glass">
+                <span class="eyebrow__dot" aria-hidden="true"></span>
+                GitHub Search API · runs entirely in your browser
+            </p>
+            <h1 id="page-title" class="hero__title">Topic Popularity <span class="hero__title-accent">Checker</span></h1>
+            <p class="hero__lede">
+                Paste a list of GitHub topics and get the live public-repository count for each one.
+                Results come straight from <code>api.github.com</code> — no account, no backend, no tracking.
+            </p>
+
+            <ul class="hero__stats" role="list">
+                <li class="stat glass">
+                    <span class="stat__value">10/min</span>
+                    <span class="stat__label">Search requests unauthenticated</span>
+                </li>
+                <li class="stat glass">
+                    <span class="stat__value">30/min</span>
+                    <span class="stat__label">With an optional token</span>
+                </li>
+                <li class="stat glass">
+                    <span class="stat__value">5 min</span>
+                    <span class="stat__label">In-memory result cache</span>
+                </li>
+            </ul>
+        </section>
+
+        <div class="workspace">
+            <!-- Input panel -->
+            <section class="panel glass" aria-labelledby="input-title">
+                <header class="panel__header">
+                    <div>
+                        <h2 id="input-title" class="panel__title">Topic batch</h2>
+                        <p class="panel__subtitle">One slug per line · duplicates are merged</p>
+                    </div>
+                    <span class="pill" id="topicCount" data-tone="idle">No topics yet</span>
+                </header>
+
+                <div class="panel__body">
+                    <div class="field">
+                        <label class="field__label" for="tokenInput">
+                            GitHub token
+                            <span class="field__tag">optional</span>
+                        </label>
+                        <div class="field__control-wrap">
+                            <input
+                                type="password"
+                                class="field__control field__control--mono field__control--trailing"
+                                id="tokenInput"
+                                placeholder="ghp_… raises your rate limit"
+                                autocomplete="off"
+                                autocapitalize="off"
+                                spellcheck="false"
+                                aria-label="GitHub Personal Access Token"
+                                aria-describedby="tokenHelp"
+                            >
+                            <button class="icon-btn" type="button" id="tokenToggle" aria-pressed="false" aria-label="Show token" aria-controls="tokenInput">
+                                <svg class="icon-btn__eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6-10-6-10-6Z"></path>
+                                    <circle cx="12" cy="12" r="2.6"></circle>
+                                </svg>
+                                <svg class="icon-btn__eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M3 3l18 18M10.6 10.7a2.6 2.6 0 0 0 3.6 3.6"></path>
+                                    <path d="M9.4 5.4A9.7 9.7 0 0 1 12 5c6.4 0 10 6 10 6a17 17 0 0 1-3.3 3.9M6.3 7.6A17 17 0 0 0 2 11s3.6 6 10 6a9.9 9.9 0 0 0 3.4-.6"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <p class="field__help" id="tokenHelp">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <rect x="4" y="10" width="16" height="10" rx="2"></rect>
+                                <path d="M8 10V7a4 4 0 0 1 8 0v3"></path>
+                            </svg>
+                            Kept in memory for this batch only — never written to storage or cookies.
+                        </p>
+                    </div>
+
+                    <div class="field">
+                        <label class="field__label" for="topicInput">Topics</label>
+                        <textarea
+                            class="field__control field__control--area field__control--mono"
+                            id="topicInput"
+                            rows="9"
+                            placeholder="api&#10;react&#10;python"
+                            autocapitalize="off"
+                            spellcheck="false"
+                            aria-label="GitHub topics list (one per line)"
+                            aria-describedby="topicHelp"
+                        ></textarea>
+                        <p class="field__help" id="topicHelp">Lowercase letters, digits and hyphens · 1–50 characters · no leading or trailing hyphen.</p>
+                    </div>
+
+                    <div class="field">
+                        <p class="field__label field__label--static" id="quickLabel">Quick add</p>
+                        <div class="chips" role="group" aria-labelledby="quickLabel">
+                            <button class="chip" type="button" data-topic="react">react</button>
+                            <button class="chip" type="button" data-topic="python">python</button>
+                            <button class="chip" type="button" data-topic="javascript">javascript</button>
+                            <button class="chip" type="button" data-topic="machine-learning">machine-learning</button>
+                            <button class="chip" type="button" data-topic="rust">rust</button>
+                            <button class="chip" type="button" data-topic="docker">docker</button>
+                            <button class="chip" type="button" data-topic="github-actions">github-actions</button>
+                            <button class="chip" type="button" data-topic="ai">ai</button>
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn btn--primary btn--block" id="checkButton">
+                        <span class="spinner" aria-hidden="true"></span>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="11" cy="11" r="7"></circle>
+                            <path d="M20 20l-3.6-3.6"></path>
+                        </svg>
+                        <span class="btn__label">Check topics</span>
+                    </button>
+
+                    <p class="status" id="statusBar" data-tone="idle">Ready when you are.</p>
+                </div>
+            </section>
+
+            <!-- Results panel -->
+            <section class="panel glass panel--results" aria-labelledby="results-title">
+                <header class="panel__header">
+                    <div>
+                        <h2 id="results-title" class="panel__title">Results</h2>
+                        <p class="panel__subtitle">Public repositories matching <code>topic:&lt;slug&gt;</code></p>
+                    </div>
+                    <div class="panel__actions">
+                        <span class="pill pill--accent" id="resultSummary" hidden></span>
+                        <button class="btn btn--sm btn--ghost" type="button" id="clearButton" disabled>Clear</button>
+                    </div>
+                </header>
+
+                <div class="panel__body">
+                    <div class="progress" id="progressBar" aria-hidden="true"></div>
+                    <div id="results" aria-live="polite"></div>
+                    <div class="empty-state" id="emptyState">
+                        <span class="empty-state__icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5z"></path>
+                                <path d="M3.5 7.5 12 12l8.5-4.5M12 12v9"></path>
+                            </svg>
+                        </span>
+                        <p class="empty-state__title">No results yet</p>
+                        <p class="empty-state__text">Add a few topics on the left and press <strong>Check topics</strong> to query GitHub.</p>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <footer class="footer glass">
+        <p class="footer__note">Vanilla HTML, CSS and JavaScript · no trackers, no dependencies, no build step.</p>
+        <nav class="footer__links" aria-label="Footer">
+            <a href="LICENSE">Apache-2.0 License</a>
+            <button class="linklike" type="button" data-dialog-open="about-dialog">How it works</button>
+            <a href="https://github.com/assembly-automation-hub/GitHub-topic-popularity-Checker" target="_blank" rel="noopener noreferrer">Source on GitHub</a>
+        </nav>
+    </footer>
+
+    <!-- Glass modal -->
+    <dialog class="modal" id="about-dialog" aria-labelledby="about-title">
+        <div class="modal__panel glass">
+            <header class="modal__header">
+                <div>
+                    <h2 class="modal__title" id="about-title">How it works</h2>
+                    <p class="modal__subtitle">Everything happens in your browser tab.</p>
+                </div>
+                <button class="icon-btn" type="button" data-dialog-close aria-label="Close dialog">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                        <path d="M6 6l12 12M18 6L6 18"></path>
+                    </svg>
+                </button>
+            </header>
+
+            <div class="modal__body">
+                <ol class="steps" role="list">
+                    <li class="steps__item glass">
+                        <span class="steps__index" aria-hidden="true">1</span>
+                        <span><strong>Normalize.</strong> Each line is trimmed, leading <code>#</code> characters are stripped, text is lowercased, and duplicates are removed while keeping first-seen order.</span>
+                    </li>
+                    <li class="steps__item glass">
+                        <span class="steps__index" aria-hidden="true">2</span>
+                        <span><strong>Validate.</strong> Slugs must be 1–50 lowercase alphanumeric or hyphen characters and cannot start or end with a hyphen. Invalid entries are rejected before any request.</span>
+                    </li>
+                    <li class="steps__item glass">
+                        <span class="steps__index" aria-hidden="true">3</span>
+                        <span><strong>Query.</strong> One <code>GET /search/repositories?q=topic:&lt;slug&gt;</code> call per uncached topic, sequentially, with a 10-second timeout and a single retry on transient <code>502/503/504</code>.</span>
+                    </li>
+                    <li class="steps__item glass">
+                        <span class="steps__index" aria-hidden="true">4</span>
+                        <span><strong>Pace.</strong> Rate-limit headers are read after each response: a small baseline delay while quota is healthy, spread-out pacing as it runs low, and a hard stop on fatal auth or quota errors.</span>
+                    </li>
+                    <li class="steps__item glass">
+                        <span class="steps__index" aria-hidden="true">5</span>
+                        <span><strong>Cache.</strong> Successful counts live in an in-memory map for five minutes, so re-checking the same batch is instant. Reloading the page clears it.</span>
+                    </li>
+                </ol>
+
+                <p class="note glass">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M12 3l7 3v5.5c0 4.3-2.9 8.2-7 9.5-4.1-1.3-7-5.2-7-9.5V6z"></path>
+                        <path d="M9.5 12.2l1.8 1.8 3.4-3.6"></path>
+                    </svg>
+                    <span>
+                        <strong>Privacy.</strong> The page policy allows connections only to <code>api.github.com</code>, blocks third-party
+                        scripts and styles, and sends no referrer. An optional token is used for the current batch and never persisted.
+                    </span>
+                </p>
+            </div>
+
+            <footer class="modal__footer">
+                <a class="btn btn--ghost" href="https://docs.github.com/en/rest/search/search" target="_blank" rel="noopener noreferrer">Search API docs</a>
+                <button class="btn btn--primary" type="button" data-dialog-close>Got it</button>
+            </footer>
+        </div>
+    </dialog>
+
     <script src="script.js" defer></script>
 </body>
 </html>

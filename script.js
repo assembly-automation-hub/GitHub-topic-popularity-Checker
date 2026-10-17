@@ -21,7 +21,20 @@
     const tokenInput = document.getElementById('tokenInput');
     const resultsDiv = document.getElementById('results');
 
+    // Optional progressive-enhancement hooks; the checker works without them
+    const checkLabel = checkButton ? checkButton.querySelector('.btn__label') : null;
+    const statusBar = document.getElementById('statusBar');
+    const progressBar = document.getElementById('progressBar');
+    const emptyState = document.getElementById('emptyState');
+    const clearButton = document.getElementById('clearButton');
+    const resultSummary = document.getElementById('resultSummary');
+    const topicCountPill = document.getElementById('topicCount');
+    const tokenToggle = document.getElementById('tokenToggle');
+
+    const CHECK_LABEL = checkLabel ? checkLabel.textContent : 'Check topics';
+
     let isChecking = false;
+    const batch = { total: 0, ok: 0, cached: 0, failed: 0 };
 
     /**
      * Sleeps for a given number of milliseconds.
@@ -206,27 +219,238 @@
         throw new Error('Request failed');
     };
 
+    /* ----------------------------------------------------------------------
+       Presentation helpers (safe no-ops when an element is absent)
+       ---------------------------------------------------------------------- */
+
+    /**
+     * Updates the status line under the primary button.
+     * @param {string} message
+     * @param {'idle' | 'busy' | 'ok' | 'error' | 'warn'} tone
+     */
+    const setStatus = (message, tone = 'idle') => {
+        if (!statusBar) return;
+        statusBar.textContent = message;
+        statusBar.dataset.tone = tone;
+    };
+
+    /** Toggles the indeterminate progress rail. */
+    const setProgress = (active) => {
+        if (progressBar) progressBar.classList.toggle('is-active', active);
+    };
+
+    /** Shows or hides the empty-state placeholder and the clear action. */
+    const syncResultsChrome = () => {
+        const hasResults = Boolean(resultsDiv && resultsDiv.childElementCount > 0);
+        if (emptyState) emptyState.hidden = hasResults;
+        if (clearButton) clearButton.disabled = !hasResults;
+        if (resultSummary) resultSummary.hidden = !hasResults;
+    };
+
+    /** Refreshes the summary pill with the running batch tally. */
+    const updateSummary = () => {
+        if (!resultSummary) return;
+        const parts = [`${batch.total} topic${batch.total === 1 ? '' : 's'}`];
+        if (batch.ok > 0) parts.push(`${batch.ok} counted`);
+        if (batch.cached > 0) parts.push(`${batch.cached} cached`);
+        if (batch.failed > 0) parts.push(`${batch.failed} failed`);
+        resultSummary.textContent = parts.join(' · ');
+    };
+
+    /**
+     * Parses the textarea into deduplicated topics, preserving first-seen order.
+     * @returns {{ topics: string[], invalid: number }}
+     */
+    const collectTopics = () => {
+        const seen = new Set();
+        const topics = [];
+        let invalid = 0;
+
+        for (const line of topicInput.value.split('\n')) {
+            const normalized = normalizeTopic(line);
+            if (normalized.length === 0 || seen.has(normalized)) continue;
+            seen.add(normalized);
+            topics.push(normalized);
+            if (!TOPIC_REGEX.test(normalized)) invalid += 1;
+        }
+
+        return { topics, invalid };
+    };
+
+    /** Updates the "N topics ready" pill above the textarea. */
+    const updateTopicCounter = () => {
+        if (!topicCountPill) return;
+        const { topics, invalid } = collectTopics();
+        const valid = topics.length - invalid;
+
+        if (topics.length === 0) {
+            topicCountPill.textContent = 'No topics yet';
+            topicCountPill.dataset.tone = 'idle';
+            return;
+        }
+
+        topicCountPill.textContent = invalid > 0
+            ? `${valid} ready · ${invalid} invalid`
+            : `${valid} topic${valid === 1 ? '' : 's'} ready`;
+        topicCountPill.dataset.tone = invalid > 0 ? 'warn' : 'ok';
+    };
+
+    /**
+     * Renders a pending ("Loading…") count cell.
+     * @param {HTMLElement} item
+     * @param {HTMLElement} countSpan
+     */
+    const renderLoading = (item, countSpan) => {
+        item.dataset.state = 'loading';
+        countSpan.className = 'result-count is-loading';
+        countSpan.textContent = 'Loading…';
+    };
+
+    /**
+     * Renders a resolved repository count as value + unit (+ cached tag).
+     * @param {HTMLElement} item
+     * @param {HTMLElement} countSpan
+     * @param {number} count
+     * @param {boolean} fromCache
+     */
+    const renderCount = (item, countSpan, count, fromCache) => {
+        item.dataset.state = fromCache ? 'cached' : 'ok';
+        countSpan.className = 'result-count';
+        countSpan.replaceChildren();
+
+        const value = document.createElement('span');
+        value.className = 'result-count__value';
+        value.textContent = count.toLocaleString();
+
+        const unit = document.createElement('span');
+        unit.className = 'result-count__unit';
+        unit.textContent = 'public repos';
+
+        countSpan.append(value, unit);
+
+        if (fromCache) {
+            const tag = document.createElement('span');
+            tag.className = 'result-count__tag';
+            tag.textContent = 'cached';
+            countSpan.append(tag);
+        }
+    };
+
+    /**
+     * Renders an error message for a topic row.
+     * @param {HTMLElement} item
+     * @param {HTMLElement} countSpan
+     * @param {string} message
+     */
+    const renderError = (item, countSpan, message) => {
+        item.dataset.state = 'error';
+        countSpan.className = 'error';
+        countSpan.textContent = message;
+    };
+
+    /** Resets the results panel to its initial, empty presentation. */
+    const resetResults = () => {
+        batch.total = 0;
+        batch.ok = 0;
+        batch.cached = 0;
+        batch.failed = 0;
+        if (resultsDiv) resultsDiv.replaceChildren();
+        updateSummary();
+        syncResultsChrome();
+    };
+
+    /* ----------------------------------------------------------------------
+       UI wiring: token reveal, quick-add chips, clear, glass modal
+       ---------------------------------------------------------------------- */
+
+    if (tokenToggle && tokenInput) {
+        tokenToggle.addEventListener('click', () => {
+            const reveal = tokenInput.type === 'password';
+            tokenInput.type = reveal ? 'text' : 'password';
+            tokenToggle.setAttribute('aria-pressed', String(reveal));
+            tokenToggle.setAttribute('aria-label', reveal ? 'Hide token' : 'Show token');
+            tokenInput.focus();
+        });
+    }
+
+    document.querySelectorAll('.chip[data-topic]').forEach((chip) => {
+        chip.addEventListener('click', () => {
+            const topic = normalizeTopic(chip.dataset.topic || '');
+            if (!topic) return;
+
+            const { topics } = collectTopics();
+            if (!topics.includes(topic)) {
+                const current = topicInput.value.replace(/\s+$/, '');
+                topicInput.value = current ? `${current}\n${topic}` : topic;
+            }
+
+            updateTopicCounter();
+            chip.classList.add('is-added');
+            setTimeout(() => chip.classList.remove('is-added'), 1200);
+            topicInput.focus();
+        });
+    });
+
+    if (clearButton) {
+        clearButton.addEventListener('click', () => {
+            if (isChecking) return;
+            resetResults();
+            setProgress(false);
+            setStatus('Results cleared.', 'idle');
+        });
+    }
+
+    if (topicInput) {
+        topicInput.addEventListener('input', updateTopicCounter);
+    }
+
+    document.querySelectorAll('[data-dialog-open]').forEach((trigger) => {
+        trigger.addEventListener('click', () => {
+            const dialog = document.getElementById(trigger.getAttribute('data-dialog-open'));
+            if (dialog && !dialog.open && typeof dialog.showModal === 'function') {
+                dialog.showModal();
+            }
+        });
+    });
+
+    document.querySelectorAll('dialog.modal').forEach((dialog) => {
+        // Clicking the glass backdrop (the dialog box itself) dismisses the modal
+        dialog.addEventListener('click', (event) => {
+            if (event.target === dialog) dialog.close();
+        });
+
+        dialog.querySelectorAll('[data-dialog-close]').forEach((closer) => {
+            closer.addEventListener('click', () => dialog.close());
+        });
+    });
+
+    updateTopicCounter();
+    syncResultsChrome();
+
     checkButton.addEventListener('click', async () => {
         if (isChecking) return;
 
         // Parse, normalize, and deduplicate topics while preserving input order
-        const seen = new Set();
-        const topics = [];
-        for (const line of topicInput.value.split('\n')) {
-            const normalized = normalizeTopic(line);
-            if (normalized.length > 0 && !seen.has(normalized)) {
-                seen.add(normalized);
-                topics.push(normalized);
-            }
-        }
+        const { topics } = collectTopics();
 
-        if (topics.length === 0) return;
+        if (topics.length === 0) {
+            setStatus('Add at least one topic to check.', 'warn');
+            topicInput.focus();
+            return;
+        }
 
         const { token, valid: isTokenValid } = parseToken(tokenInput.value);
 
         isChecking = true;
         checkButton.disabled = true;
-        resultsDiv.replaceChildren();
+        checkButton.classList.add('is-busy');
+        if (checkLabel) checkLabel.textContent = 'Checking…';
+        resetResults();
+        batch.total = topics.length;
+        updateSummary();
+        syncResultsChrome();
+        setProgress(true);
+        setStatus(`Checking ${topics.length} topic${topics.length === 1 ? '' : 's'}…`, 'busy');
 
         try {
             // Build all result rows upfront in a single DocumentFragment to minimize DOM reflows
@@ -244,19 +468,20 @@
                 const countSpan = document.createElement('span');
 
                 if (!isTokenValid) {
-                    countSpan.className = 'error';
-                    countSpan.textContent = 'Invalid Token Format';
+                    renderError(item, countSpan, 'Invalid Token Format');
+                    batch.failed += 1;
                 } else if (!TOPIC_REGEX.test(topic)) {
                     // Reject malformed topics client-side to prevent query injection and save rate limits
-                    countSpan.className = 'error';
-                    countSpan.textContent = 'Invalid topic format';
+                    renderError(item, countSpan, 'Invalid topic format');
+                    batch.failed += 1;
                 } else {
                     const cachedCount = getCachedCount(topic);
                     if (cachedCount !== null) {
-                        countSpan.textContent = `${cachedCount.toLocaleString()} public`;
+                        renderCount(item, countSpan, cachedCount, true);
+                        batch.cached += 1;
                     } else {
-                        countSpan.textContent = 'Loading...';
-                        pendingQueue.push({ topic, countSpan });
+                        renderLoading(item, countSpan);
+                        pendingQueue.push({ topic, item, countSpan });
                     }
                 }
 
@@ -266,8 +491,17 @@
             }
 
             resultsDiv.appendChild(fragment);
+            updateSummary();
 
-            if (!isTokenValid || pendingQueue.length === 0) {
+            if (!isTokenValid) {
+                setStatus('Token format rejected — no request was sent to GitHub.', 'error');
+                return;
+            }
+
+            if (pendingQueue.length === 0) {
+                setStatus(batch.failed > 0
+                    ? 'Nothing to fetch — fix the highlighted topics.'
+                    : `All ${batch.cached} topic${batch.cached === 1 ? '' : 's'} served from the 5-minute cache.`, 'ok');
                 return;
             }
 
@@ -280,37 +514,59 @@
                 headers['Authorization'] = `Bearer ${token}`;
             }
 
+            let fatalMessage = '';
+
             for (let i = 0; i < pendingQueue.length; i++) {
-                const { topic, countSpan } = pendingQueue[i];
+                const { topic, item, countSpan } = pendingQueue[i];
                 const remainingAfterCurrent = pendingQueue.length - 1 - i;
+
+                setStatus(`Fetching ${topic} — ${i + 1} of ${pendingQueue.length}…`, 'busy');
 
                 try {
                     const { count, response } = await fetchTopicCount(topic, headers);
                     topicCache.set(topic, { count, timestamp: Date.now() });
-                    countSpan.textContent = `${count.toLocaleString()} public`;
+                    renderCount(item, countSpan, count, false);
+                    batch.ok += 1;
+                    updateSummary();
 
                     const waitMs = computeAdaptiveDelay(response, remainingAfterCurrent, Boolean(token));
                     if (waitMs > 0) {
                         await delay(waitMs);
                     }
                 } catch (error) {
-                    countSpan.className = 'error';
-                    countSpan.textContent = error.message;
+                    renderError(item, countSpan, error.message);
+                    batch.failed += 1;
+                    updateSummary();
 
                     // Abort remaining requests on fatal errors (e.g., invalid token or exhausted rate limit)
                     // to avoid repeated failed requests and potential IP lockouts.
                     if (error.fatal) {
+                        fatalMessage = error.message;
                         for (let j = i + 1; j < pendingQueue.length; j++) {
-                            pendingQueue[j].countSpan.className = 'error';
-                            pendingQueue[j].countSpan.textContent = error.message;
+                            renderError(pendingQueue[j].item, pendingQueue[j].countSpan, error.message);
+                            batch.failed += 1;
                         }
+                        updateSummary();
                         break;
                     }
                 }
             }
+
+            if (fatalMessage) {
+                setStatus(`Stopped early: ${fatalMessage}`, 'error');
+            } else if (batch.failed > 0) {
+                setStatus(`Finished with ${batch.failed} failed topic${batch.failed === 1 ? '' : 's'}.`, 'warn');
+            } else {
+                setStatus(`Done — ${batch.ok + batch.cached} topic${(batch.ok + batch.cached) === 1 ? '' : 's'} counted.`, 'ok');
+            }
         } finally {
             isChecking = false;
             checkButton.disabled = false;
+            checkButton.classList.remove('is-busy');
+            if (checkLabel) checkLabel.textContent = CHECK_LABEL;
+            setProgress(false);
+            syncResultsChrome();
+            updateTopicCounter();
         }
     });
 })();
